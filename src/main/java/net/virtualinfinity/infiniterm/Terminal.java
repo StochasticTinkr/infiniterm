@@ -11,6 +11,7 @@ import net.virtualinfinity.telnet.TelnetSession;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.Color;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -25,6 +26,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Vector;
 import java.util.function.Consumer;
 
@@ -38,7 +40,7 @@ public class Terminal {
     private final PresentationComponent view;
     private final JFrame frame;
     private final JComboBox<String> hostInput;
-    private final JComboBox<Charset> encodingInput;
+    private JComboBox<Charset> encodingInput;
     private final EventLoop eventLoop;
     private final KeyListenerInputDevice inputDevice = new KeyListenerInputDevice();
     private final Action connectAction = new AbstractAction("Connect") {
@@ -75,8 +77,9 @@ public class Terminal {
         this.eventLoop = new EventLoop(this::handleException);
         this.frame = new JFrame(DISCONNECTED_TITLE);
         view = new PresentationComponent();
-        view.setFont(new Font("PT Mono", Font.PLAIN, 16));
-        frame.add(new StickyBottomScrollPane(view));
+        final StickyBottomScrollPane scrollPane = new StickyBottomScrollPane(view, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollPane.getVerticalScrollBar().setBackground(Color.black);
+        frame.add(scrollPane);
         // TODO: Font picker and preferences.
         frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         frame.addWindowStateListener(e -> {
@@ -88,10 +91,32 @@ public class Terminal {
         toolBar.add(new JLabel("Host:"));
         hostInput = new JComboBox<>();
         hostInput.setEditable(true);
-        toolBar.add(hostInput);
-        toolBar.add(new JButton(connectAction));
-        toolBar.add(new JButton(disconnectAction));
+        addConnectionWidgets(toolBar);
         toolBar.addSeparator();
+        addEncodingWidgets(toolBar);
+        toolBar.addSeparator();
+        toolBar.add(new JLabel("Font:"));
+        final GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        final JComboBox<String> fonts = new JComboBox<>(ge.getAvailableFontFamilyNames());
+        Arrays.asList(Font.MONOSPACED, "Monoco", "PT Mono", "Perfect DOS VGA 437").forEach(fonts::setSelectedItem);
+        fonts.setEditable(false);
+        toolBar.add(fonts);
+        final JSpinner fontSizes = new JSpinner(new SpinnerNumberModel(16, 6, 60, 1));
+        toolBar.add(fontSizes);
+        final Runnable updateFont = () -> {
+            view.setFont(new Font(fonts.getItemAt(fonts.getSelectedIndex()), Font.PLAIN, (Integer) fontSizes.getValue()));
+            frame.pack();
+        };
+        fonts.addActionListener(e -> updateFont.run());
+        fontSizes.addChangeListener(e -> updateFont.run());
+        updateFont.run();
+        frame.add(toolBar, BorderLayout.PAGE_START);
+        view.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "paste");
+        view.getActionMap().put("paste", new PasteAction(inputDevice));
+        view.addKeyListener(inputDevice);
+    }
+
+    private void addEncodingWidgets(JToolBar toolBar) {
         toolBar.add(new JLabel("Encoding:"));
         //noinspection UseOfObsoleteCollectionType
         final Vector<Charset> charsets = new Vector<>();
@@ -109,11 +134,15 @@ public class Terminal {
                 onIOThread(() -> setCharSet(selectedCharset()));
             }
         });
+
         toolBar.add(encodingInput);
-        frame.add(toolBar, BorderLayout.PAGE_START);
-        view.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "paste");
-        view.getActionMap().put("paste", new PasteAction(inputDevice));
-        view.addKeyListener(inputDevice);
+
+    }
+
+    private void addConnectionWidgets(JToolBar toolBar) {
+        toolBar.add(hostInput);
+        toolBar.add(new JButton(connectAction));
+        toolBar.add(new JButton(disconnectAction));
     }
 
     private void handleException(SelectionKey selectionKey, IOException e) {
