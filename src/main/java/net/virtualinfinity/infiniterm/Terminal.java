@@ -42,6 +42,9 @@ public class Terminal {
     private State state = State.DISCONNECTED;
     private final int id;
     private static int nextId = 0;
+    private Decoder decoder;
+    private Encoder encoder;
+
     {
         synchronized (Terminal.class) {
             id = nextId++;
@@ -81,6 +84,12 @@ public class Terminal {
         encodingInput = new JComboBox<>(charsets);
         encodingInput.setEditable(false);
         encodingInput.setSelectedItem(Charset.defaultCharset());
+        encodingInput.setAction(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                onIOThread(() -> setCharSet(selectedCharset()));
+            }
+        });
         toolBar.add(encodingInput);
         frame.add(toolBar, BorderLayout.PAGE_START);
         view.getInputMap().put(KeyStroke.getKeyStroke("meta V"), "paste");
@@ -121,8 +130,7 @@ public class Terminal {
             try {
                 channel = SocketChannel.open(parseAddress(selectedItem.toString()));
                 channel.configureBlocking(false);
-                final Charset charset = encodingInput.getItemAt(encodingInput.getSelectedIndex());
-                finishConnect(charset, channel);
+                finishConnect(selectedCharset(), channel);
             } catch (Exception e) {
                 disconnect();
                 displayConnectError(e);
@@ -134,6 +142,10 @@ public class Terminal {
                 }
             }
         });
+    }
+
+    private Charset selectedCharset() {
+        return encodingInput.getItemAt(encodingInput.getSelectedIndex());
     }
 
     private void onIOThread(Runnable action) {
@@ -151,10 +163,20 @@ public class Terminal {
         state = State.CONNECTED;
         final OutputDeviceImpl device = new OutputDeviceImpl(view.getModel());
         device.inputDevice(inputDevice);
-        final Decoder decoder = new Decoder(device).charset(charset);
+        decoder = new Decoder(device);
         final TelnetSession telnetSession = createTelnetSession(channel, decoder);
-        final Encoder encoder = new Encoder(new TelnetSessionDispatcher(telnetSession, eventLoop)).charset(charset);
+        encoder = new Encoder(new TelnetSessionDispatcher(telnetSession, eventLoop));
+        setCharSet(charset);
         onGuiThread(() -> inputDevice.setEncoder(encoder));
+    }
+
+    private void setCharSet(Charset charset) {
+        if (encoder != null) {
+            encoder.charset(charset);
+        }
+        if (decoder != null) {
+            decoder.charset(charset);
+        }
     }
 
     private void onGuiThread(Runnable action) {
@@ -189,6 +211,8 @@ public class Terminal {
 
     public void disconnect() {
     }
+
+
 
 
     private class ConnectAction extends AbstractAction {
