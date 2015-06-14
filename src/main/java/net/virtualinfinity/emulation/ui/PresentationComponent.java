@@ -4,6 +4,8 @@ import net.virtualinfinity.emulation.Intensity;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 /**
  * @author <a href='mailto:Daniel@coloraura.com'>Daniel Pitts</a>
@@ -20,6 +22,12 @@ public class PresentationComponent extends JComponent implements Scrollable {
         model.addPresentationComponentModelListener(() -> {
             revalidate();
             repaint();
+        });
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                requestFocusInWindow();
+            }
         });
     }
 
