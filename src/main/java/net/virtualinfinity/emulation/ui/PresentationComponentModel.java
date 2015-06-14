@@ -125,8 +125,10 @@ public class PresentationComponentModel implements PresentationDevice {
     }
 
     private List<PresentationComponentLine> existingDisplayedLines(int start, int count) {
-        return lines.subList(bound(actualIndex(start)), bound(actualIndex(start + count)));
+        return linesBetween(actualIndex(start), actualIndex(start + count));
     }
+
+
 
     private int bound(int index) {
         return Math.max(0, Math.min(index, lines.size()));
@@ -205,5 +207,9 @@ public class PresentationComponentModel implements PresentationDevice {
 
     public int topLineIndex() {
         return topLineIndex;
+    }
+
+    public List<PresentationComponentLine> linesBetween(int actualStart, int actualEnd) {
+            return lines.subList(bound(actualStart), bound(actualEnd));
     }
 }

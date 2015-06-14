@@ -45,10 +45,11 @@ public class PresentationComponent extends JComponent implements Scrollable {
         final Shape oldClip = g2d.getClip();
 
         final int start = g2d.getFontMetrics(getFont()).getAscent();
+        final int firstVisibleLine = (int)Math.floor((getVisibleRect().getMinY() - start) / lineHeight());
+        final int lastVisibleLine = (int)Math.ceil((getVisibleRect().getMaxY() / lineHeight()));
         for (int pass = 0; pass < 2; ++pass) {
-            int y = start;
-            int lineNumber = 0;
-            for (final AttributedCharacterLine lineModel: model.lines()) {
+            int y = start + firstVisibleLine *lineHeight();
+            for (final AttributedCharacterLine lineModel: model.linesBetween(firstVisibleLine, lastVisibleLine+1)) {
                 for (int col = 0, x = 0; col < model.numColumns() && col < lineModel.numPositions(); ++col, x += getCharacterWidth(g2d)) {
                     final DisplayAttribute attribute = lineModel.attribute(col);
                     if (attribute != null) {
@@ -81,7 +82,6 @@ public class PresentationComponent extends JComponent implements Scrollable {
                         }
                     }
                 }
-                ++lineNumber;
                 y += lineHeight();
             }
             final DisplayAttribute cursorAttribute = model.displayedLine(model.currentLine()).attribute(model.currentColumn());
