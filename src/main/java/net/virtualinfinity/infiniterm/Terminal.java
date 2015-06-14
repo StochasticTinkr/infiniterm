@@ -15,6 +15,7 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -110,7 +111,7 @@ public class Terminal {
         });
         toolBar.add(encodingInput);
         frame.add(toolBar, BorderLayout.PAGE_START);
-        view.getInputMap().put(KeyStroke.getKeyStroke("meta V"), "paste");
+        view.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "paste");
         view.getActionMap().put("paste", new PasteAction(inputDevice));
         view.addKeyListener(inputDevice);
     }
