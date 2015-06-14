@@ -12,7 +12,11 @@ public class KeyListenerInputDevice extends KeyAdapter implements InputDevice {
 
     @Override
     public void keyTyped(KeyEvent e) {
-        typed(e.getKeyChar());
+        if (e.getKeyChar() == '\n') {
+            typed('\r');
+        } else {
+            typed(e.getKeyChar());
+        }
     }
 
     @Override
