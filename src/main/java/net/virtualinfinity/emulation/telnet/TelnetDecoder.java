@@ -13,30 +13,16 @@ import java.nio.ByteBuffer;
  */
 public class TelnetDecoder implements TelnetSessionListener {
     private final Decoder decoder;
+    private final Runnable onClose;
 
-    public TelnetDecoder(Decoder decoder) {
+    public TelnetDecoder(Decoder decoder, Runnable onClose) {
         this.decoder = decoder;
+        this.onClose = onClose;
     }
 
     @Override
     public void processData(ByteBuffer data, TelnetSession session) throws IOException {
         decoder.received(data);
-    }
-
-    @Override
-    public void doBreak(TelnetSession session) {
-    }
-
-    @Override
-    public void doInterrupt(TelnetSession session) {
-    }
-
-    @Override
-    public void doAbortOutput(TelnetSession session) {
-    }
-
-    @Override
-    public void doAreYouThere(TelnetSession session) {
     }
 
     @Override
@@ -50,6 +36,7 @@ public class TelnetDecoder implements TelnetSessionListener {
     }
 
     @Override
-    public void doGoAhead(TelnetSession session) {
+    public void connectionClosed() {
+        onClose.run();
     }
 }

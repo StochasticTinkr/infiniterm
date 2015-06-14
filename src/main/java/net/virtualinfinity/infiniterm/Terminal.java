@@ -39,11 +39,29 @@ public class Terminal {
     private final JComboBox<Charset> encodingInput;
     private final EventLoop eventLoop;
     private final KeyListenerInputDevice inputDevice = new KeyListenerInputDevice();
+    private final Action connectAction = new AbstractAction("Connect") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            connect();
+            view.requestFocusInWindow();
+        }
+    };
+    private final Action disconnectAction = new AbstractAction("Disconnect") {
+        {
+            setEnabled(false);
+        }
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            disconnect();
+            hostInput.requestFocusInWindow();
+        }
+    };
     private State state = State.DISCONNECTED;
     private final int id;
     private static int nextId = 0;
     private Decoder decoder;
     private Encoder encoder;
+    private TelnetSession telnetSession;
 
     {
         synchronized (Terminal.class) {
@@ -68,10 +86,9 @@ public class Terminal {
         toolBar.add(new JLabel("Host:"));
         hostInput = new JComboBox<>();
         hostInput.setEditable(true);
-        hostInput.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("enter"), "connect");
-        hostInput.getActionMap().put("connect", new ConnectAction());
         toolBar.add(hostInput);
-        toolBar.add(new JButton(new ConnectAction()));
+        toolBar.add(new JButton(connectAction));
+        toolBar.add(new JButton(disconnectAction));
         toolBar.addSeparator();
         toolBar.add(new JLabel("Encoding:"));
         //noinspection UseOfObsoleteCollectionType
@@ -114,33 +131,35 @@ public class Terminal {
     }
 
     private void connect() {
-        if (state != State.DISCONNECTED) {
-            return;
-        }
-        final Object selectedItem = hostInput.getModel().getSelectedItem();
-        if (selectedItem == null) {
-            JOptionPane.showMessageDialog(frame,
-                "Please select a host to connect to.",
-                "No host selected", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        state = State.CONNECTING;
-        onIOThread(() -> {
-            SocketChannel channel = null;
-            try {
-                channel = SocketChannel.open(parseAddress(selectedItem.toString()));
-                channel.configureBlocking(false);
-                finishConnect(selectedCharset(), channel);
-            } catch (Exception e) {
-                disconnect();
-                displayConnectError(e);
-                if (channel != null) {
-                    try {
-                        channel.close();
-                    } catch (IOException e1) {
+        onGuiThread(() -> {
+            disconnectAction.setEnabled(true);
+            final Object selectedItem = hostInput.getModel().getSelectedItem();
+            if (selectedItem == null) {
+                JOptionPane.showMessageDialog(frame,
+                    "Please select a host to connect to.",
+                    "No host selected", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            hostInput.setEnabled(false);
+            connectAction.setEnabled(false);
+            onIOThread(() -> {
+                state = State.CONNECTING;
+                SocketChannel channel = null;
+                try {
+                    channel = SocketChannel.open(parseAddress(selectedItem.toString()));
+                    channel.configureBlocking(false);
+                    finishConnect(selectedCharset(), channel);
+                } catch (Exception e) {
+                    disconnect();
+                    displayConnectError(e);
+                    if (channel != null) {
+                        try {
+                            channel.close();
+                        } catch (IOException ignore) {
+                        }
                     }
                 }
-            }
+            });
         });
     }
 
@@ -164,19 +183,21 @@ public class Terminal {
         final OutputDeviceImpl device = new OutputDeviceImpl(view.getModel());
         device.inputDevice(inputDevice);
         decoder = new Decoder(device);
-        final TelnetSession telnetSession = createTelnetSession(channel, decoder);
+        telnetSession = createTelnetSession(channel, decoder);
         encoder = new Encoder(new TelnetSessionDispatcher(telnetSession, eventLoop));
         setCharSet(charset);
         onGuiThread(() -> inputDevice.setEncoder(encoder));
     }
 
     private void setCharSet(Charset charset) {
-        if (encoder != null) {
-            encoder.charset(charset);
-        }
-        if (decoder != null) {
-            decoder.charset(charset);
-        }
+        onIOThread(() -> {
+            if (encoder != null) {
+                encoder.charset(charset);
+            }
+            if (decoder != null) {
+                decoder.charset(charset);
+            }
+        });
     }
 
     private void onGuiThread(Runnable action) {
@@ -191,7 +212,7 @@ public class Terminal {
     }
 
     private TelnetSession createTelnetSession(SocketChannel channel, Decoder decoder) throws ClosedChannelException {
-        final TelnetSession session = new TelnetSession(channel, new TelnetDecoder(decoder));
+        final TelnetSession session = new TelnetSession(channel, new TelnetDecoder(decoder, this::disconnect));
         eventLoop.registerHandler(channel, session);
         session.option(Option.ECHO).allowRemote();
         session.option(Option.BINARY_TRANSMISSION).allowRemote().allowLocal();
@@ -210,22 +231,24 @@ public class Terminal {
     }
 
     public void disconnect() {
+
+        onGuiThread(() -> {
+            disconnectAction.setEnabled(false);
+            hostInput.setEnabled(true);
+            connectAction.setEnabled(true);
+        });
+        onIOThread(() -> {
+            state = State.DISCONNECTED;
+            if (telnetSession != null) {
+                telnetSession.close();
+                telnetSession = null;
+                decoder = null;
+                encoder = null;
+
+            }
+        });
     }
 
-
-
-
-    private class ConnectAction extends AbstractAction {
-        public ConnectAction() {
-            super("Connect");
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            connect();
-            view.requestFocusInWindow();
-        }
-    }
 
     private enum State {
         DISCONNECTED,
