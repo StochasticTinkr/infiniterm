@@ -1,7 +1,5 @@
 package net.virtualinfinity.infiniterm;
 
-import net.virtualinfinity.nio.EventLoop;
-
 import javax.swing.*;
 import java.awt.*;
 import java.io.IOException;
@@ -11,13 +9,15 @@ import java.io.IOException;
  */
 public class Main {
     public static void main(String[] args) throws IOException {
-        final EventLoop eventLoop = new EventLoop();
         EventQueue.invokeLater(() -> {
             setLookAndFeel();
-            final TerminalFrame terminalFrame = new TerminalFrame(eventLoop);
-            terminalFrame.show();
+            try {
+                final Terminal terminalFrame = new Terminal();
+                terminalFrame.show();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         });
-        eventLoop.run();
 
     }
 

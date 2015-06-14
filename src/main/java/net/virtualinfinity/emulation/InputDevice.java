@@ -1,5 +1,7 @@
 package net.virtualinfinity.emulation;
 
+import java.nio.CharBuffer;
+
 /**
  * @author <a href='mailto:Daniel@coloraura.com'>Daniel Pitts</a>
  */
@@ -13,4 +15,8 @@ public interface InputDevice {
 
     void sendStatusReport();
     void reportPosition(int currentLine, int currentColumn);
+
+    void setEncoder(Encoder encoder);
+    Encoder getEncoder();
+    void pasted(CharBuffer charBuffer);
 }

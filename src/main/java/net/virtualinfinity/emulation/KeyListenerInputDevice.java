@@ -8,10 +8,7 @@ import java.nio.CharBuffer;
  * @author <a href='mailto:Daniel@coloraura.com'>Daniel Pitts</a>
  */
 public class KeyListenerInputDevice extends KeyAdapter implements InputDevice {
-    private final Encoder encoder;
-    public KeyListenerInputDevice(Encoder encoder) {
-        this.encoder = encoder;
-    }
+    private Encoder encoder;
 
     @Override
     public void keyTyped(KeyEvent e) {
@@ -47,6 +44,9 @@ public class KeyListenerInputDevice extends KeyAdapter implements InputDevice {
 
     @Override
     public void typed(char ch) {
+        if (encoder == null) {
+            return;
+        }
         encoder.character(CharBuffer.wrap("" + ch));
         encoder.flushCharacters();
         encoder.flush(false);
@@ -54,37 +54,76 @@ public class KeyListenerInputDevice extends KeyAdapter implements InputDevice {
 
     @Override
     public void right() {
+        if (encoder == null) {
+            return;
+        }
         encoder.right();
         encoder.flush(false);
     }
 
     @Override
     public void left() {
+        if (encoder == null) {
+            return;
+        }
         encoder.left();
         encoder.flush(false);
     }
 
     @Override
     public void down() {
+        if (encoder == null) {
+            return;
+        }
         encoder.down();
         encoder.flush(false);
     }
 
     @Override
     public void up() {
+        if (encoder == null) {
+            return;
+        }
         encoder.up();
         encoder.flush(false);
     }
 
     @Override
     public void sendStatusReport() {
+        if (encoder == null) {
+            return;
+        }
         encoder.statusReport();
         encoder.flush(false);
     }
 
     @Override
     public void reportPosition(int currentLine, int currentColumn) {
+        if (encoder == null) {
+            return;
+        }
         encoder.reportPosition(currentLine, currentColumn);
         encoder.flush(false);
     }
+
+    @Override
+    public void pasted(CharBuffer charBuffer) {
+        if (encoder == null) {
+            return;
+        }
+        encoder.character(charBuffer);
+        encoder.flush(false);
+    }
+
+    @Override
+    public void setEncoder(Encoder encoder) {
+        this.encoder = encoder;
+    }
+
+    @Override
+    public Encoder getEncoder() {
+        return encoder;
+    }
+
+
 }

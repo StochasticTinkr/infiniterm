@@ -16,6 +16,7 @@ public class PresentationComponent extends JComponent implements Scrollable {
 //        Stream.of(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()).forEachOrdered(System.out::println);
         setBackground(Color.black);
         setForeground(Color.white);
+        setFocusable(true);
         model.addPresentationComponentModelListener(() -> {
             revalidate();
             repaint();
@@ -30,6 +31,7 @@ public class PresentationComponent extends JComponent implements Scrollable {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         final Graphics2D g2d = (Graphics2D) g;
+        g2d.setFont(getFont());
         g2d.setColor(getBackground());
         g2d.fillRect(0, 0, getWidth(), getHeight());
         final Shape oldClip = g2d.getClip();
