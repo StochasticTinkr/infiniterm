@@ -18,7 +18,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -33,6 +32,8 @@ import java.util.function.Consumer;
  */
 public class Terminal {
     public static final String IBM_437 = "IBM437";
+    public static final String TITLE_PREFIX = "VirtualInfiniterm";
+    public static final String DISCONNECTED_TITLE = TITLE_PREFIX + " - (Disconnected)";
     private final PresentationComponent view;
     private final JFrame frame;
     private final JComboBox<String> hostInput;
@@ -71,7 +72,7 @@ public class Terminal {
 
     public Terminal() throws IOException {
         this.eventLoop = new EventLoop(this::handleException);
-        this.frame = new JFrame();
+        this.frame = new JFrame(DISCONNECTED_TITLE);
         view = new PresentationComponent();
         view.setFont(new Font("PT Mono", Font.PLAIN, 16));
         frame.add(new StickyBottomScrollPane(view));
@@ -140,18 +141,21 @@ public class Terminal {
                     "No host selected", JOptionPane.ERROR_MESSAGE);
                 return;
             }
+            final InetSocketAddress address = parseAddress(selectedItem.toString());
             hostInput.setEnabled(false);
             connectAction.setEnabled(false);
+            frame.setTitle(TITLE_PREFIX + " - " + addressName(address) + " (Connecting...)");
             onIOThread(() -> {
                 state = State.CONNECTING;
                 SocketChannel channel = null;
                 try {
-                    channel = SocketChannel.open(parseAddress(selectedItem.toString()));
+                    channel = SocketChannel.open(address);
                     channel.configureBlocking(false);
                     finishConnect(selectedCharset(), channel);
+                    frame.setTitle(TITLE_PREFIX + " - " + addressName(address) + " (Connected)");
                 } catch (Exception e) {
-                    disconnect();
                     displayConnectError(e);
+                    disconnect();
                     if (channel != null) {
                         try {
                             channel.close();
@@ -161,6 +165,13 @@ public class Terminal {
                 }
             });
         });
+    }
+
+    private String addressName(InetSocketAddress address) {
+        if (address.getPort() != 23) {
+            return address.getHostString() + ":" + address.getPort();
+        }
+        return address.getHostString();
     }
 
     private Charset selectedCharset() {
@@ -175,8 +186,8 @@ public class Terminal {
         try {
             channel.finishConnect();
         } catch (IOException e) {
-            disconnect();
             displayConnectError(e);
+            disconnect();
             return;
         }
         state = State.CONNECTED;
@@ -221,7 +232,7 @@ public class Terminal {
         return session;
     }
 
-    private SocketAddress parseAddress(String host) {
+    private InetSocketAddress parseAddress(String host) {
         final int colon = host.indexOf(':');
         if (colon < 0) {
             return new InetSocketAddress(host, 23);
@@ -231,11 +242,11 @@ public class Terminal {
     }
 
     public void disconnect() {
-
         onGuiThread(() -> {
             disconnectAction.setEnabled(false);
             hostInput.setEnabled(true);
             connectAction.setEnabled(true);
+            frame.setTitle(DISCONNECTED_TITLE);
         });
         onIOThread(() -> {
             state = State.DISCONNECTED;
