@@ -29,7 +29,7 @@
         <dependency>
             <groupId>net.virtualinfinity</groupId>
             <artifactId>net.virtualinfinity.telnet</artifactId>
-            <version>1.0.1</version>
+            <version>1.0.2</version>
         </dependency>
         <dependency>
         	<groupId>log4j</groupId>

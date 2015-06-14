@@ -53,11 +53,12 @@ public class Decoder {
         } else {
             inputBuffer.clear();
         }
+        charBuffer.flip();
         if (charBuffer.hasRemaining()) {
-            charBuffer.flip();
             device.received(charBuffer);
-            charBuffer.clear();
         }
+        charBuffer.clear();
+
         return this;
     }
 

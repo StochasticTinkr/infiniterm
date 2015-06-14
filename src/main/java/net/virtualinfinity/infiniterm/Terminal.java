@@ -66,6 +66,7 @@ public class Terminal {
     private Decoder decoder;
     private Encoder encoder;
     private TelnetSession telnetSession;
+    private String connectionAddress;
 
     {
         synchronized (Terminal.class) {
@@ -98,7 +99,7 @@ public class Terminal {
         toolBar.add(new JLabel("Font:"));
         final GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
         final JComboBox<String> fonts = new JComboBox<>(ge.getAvailableFontFamilyNames());
-        Arrays.asList(Font.MONOSPACED, "Monoco", "PT Mono", "Perfect DOS VGA 437").forEach(fonts::setSelectedItem);
+        Arrays.asList(Font.MONOSPACED, "Monoco", "PT Mono").forEach(fonts::setSelectedItem);
         fonts.setEditable(false);
         toolBar.add(fonts);
         final JSpinner fontSizes = new JSpinner(new SpinnerNumberModel(16, 6, 60, 1));
@@ -127,7 +128,7 @@ public class Terminal {
         charsets.addAll(Charset.availableCharsets().values());
         encodingInput = new JComboBox<>(charsets);
         encodingInput.setEditable(false);
-        encodingInput.setSelectedItem(Charset.defaultCharset());
+        encodingInput.setSelectedItem(Charset.forName(IBM_437));
         encodingInput.setAction(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -171,21 +172,22 @@ public class Terminal {
                     "No host selected", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            final InetSocketAddress address = parseAddress(selectedItem.toString());
             hostInput.setEnabled(false);
             connectAction.setEnabled(false);
-            frame.setTitle(TITLE_PREFIX + " - " + addressName(address) + " (Connecting...)");
             onIOThread(() -> {
+                onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + selectedItem.toString() + " (Resolving...)"));
+                final InetSocketAddress address = resolveAddress(selectedItem.toString());
+                connectionAddress = addressName(address);
                 state = State.CONNECTING;
+                onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Connecting...)"));
                 SocketChannel channel = null;
                 try {
-                    channel = SocketChannel.open(address);
+                    channel = SocketChannel.open();
                     channel.configureBlocking(false);
+                    channel.connect(address);
                     finishConnect(selectedCharset(), channel);
-                    frame.setTitle(TITLE_PREFIX + " - " + addressName(address) + " (Connected)");
                 } catch (Exception e) {
-                    displayConnectError(e);
-                    disconnect();
+                    disconnectOnError(e);
                     if (channel != null) {
                         try {
                             channel.close();
@@ -195,6 +197,11 @@ public class Terminal {
                 }
             });
         });
+    }
+
+    private void connectionSuccessful() {
+        state = State.CONNECTED;
+        frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Connected)");
     }
 
     private String addressName(InetSocketAddress address) {
@@ -213,14 +220,6 @@ public class Terminal {
     }
 
     private void finishConnect(Charset charset, SocketChannel channel) throws ClosedChannelException {
-        try {
-            channel.finishConnect();
-        } catch (IOException e) {
-            displayConnectError(e);
-            disconnect();
-            return;
-        }
-        state = State.CONNECTED;
         final OutputDeviceImpl device = new OutputDeviceImpl(view.getModel());
         device.inputDevice(inputDevice);
         decoder = new Decoder(device);
@@ -245,7 +244,8 @@ public class Terminal {
         EventQueue.invokeLater(action);
     }
 
-    private void displayConnectError(Exception e) {
+    private void disconnectOnError(Exception e) {
+        disconnect();
         onGuiThread(() ->
             JOptionPane.showMessageDialog(frame,
                 "Unable to connect to host:" + e.toString(),
@@ -253,7 +253,7 @@ public class Terminal {
     }
 
     private TelnetSession createTelnetSession(SocketChannel channel, Decoder decoder) throws ClosedChannelException {
-        final TelnetSession session = new TelnetSession(channel, new TelnetDecoder(decoder, this::disconnect));
+        final TelnetSession session = new TelnetSession(channel, new TelnetDecoder(decoder, this::disconnect, this::connectionSuccessful, this::disconnectOnError));
         eventLoop.registerHandler(channel, session);
         session.option(Option.ECHO).allowRemote();
         session.option(Option.BINARY_TRANSMISSION).allowRemote().allowLocal();
@@ -262,13 +262,13 @@ public class Terminal {
         return session;
     }
 
-    private InetSocketAddress parseAddress(String host) {
+    private InetSocketAddress resolveAddress(String host) {
         final int colon = host.indexOf(':');
         if (colon < 0) {
             return new InetSocketAddress(host, 23);
         }
 
-        return new InetSocketAddress(host.substring(0, colon), Integer.parseInt(host.substring(colon+1)));
+        return new InetSocketAddress(host.substring(0, colon), Integer.parseInt(host.substring(colon + 1)));
     }
 
     public void disconnect() {

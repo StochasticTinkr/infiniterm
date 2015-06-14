@@ -55,6 +55,7 @@ public class Main {
 
     private static class SwingDocumentAppender extends AppenderSkeleton {
         private final Document document = new PlainDocument();
+        private final StringBuilder builder = new StringBuilder();
 
         public SwingDocumentAppender() {
             setLayout(new TTCCLayout());
@@ -63,10 +64,18 @@ public class Main {
         @Override
         protected void append(LoggingEvent event) {
             final String format = getLayout().format(event);
+            synchronized (builder) {
+                builder.append(format);
+            }
             EventQueue.invokeLater(() -> {
                     if (document != null) {
                         try {
-                            document.insertString(document.getLength(), format, SimpleAttributeSet.EMPTY);
+                            final String result;
+                            synchronized (builder) {
+                                result = builder.toString();
+                                builder.delete(0, builder.length());
+                            }
+                            document.insertString(document.getLength(), result, SimpleAttributeSet.EMPTY);
                         } catch (BadLocationException e) {
                         }
                     }

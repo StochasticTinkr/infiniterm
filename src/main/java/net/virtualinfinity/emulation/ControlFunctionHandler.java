@@ -250,9 +250,9 @@ public class ControlFunctionHandler {
     }
 
     public OutputDevice erase(byte[] parameters, OutputDevice device, AreaType area) {
-        switch (singleInt(parameters, ERASE_TOP_TO_CURSOR)) {
-            case ERASE_TOP_TO_CURSOR:    return device.eraseInAreaToCursor(area);
+        switch (singleInt(parameters, ERASE_CURSOR_TO_BOTTOM)) {
             case ERASE_CURSOR_TO_BOTTOM: return device.eraseInAreaAfterCursor(area);
+            case ERASE_TOP_TO_CURSOR:    return device.eraseInAreaToCursor(area);
             case ERASE_ENTIRE_AREA:      return device.eraseArea(area);
             default: return device;
         }

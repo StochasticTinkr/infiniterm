@@ -7,6 +7,7 @@ import net.virtualinfinity.telnet.TelnetSessionListener;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 /**
  * @author <a href='mailto:Daniel@coloraura.com'>Daniel Pitts</a>
@@ -14,10 +15,14 @@ import java.nio.ByteBuffer;
 public class TelnetDecoder implements TelnetSessionListener {
     private final Decoder decoder;
     private final Runnable onClose;
+    private final Runnable onConnect;
+    private final Consumer<IOException> onConnectFailure;
 
-    public TelnetDecoder(Decoder decoder, Runnable onClose) {
+    public TelnetDecoder(Decoder decoder, Runnable onClose, Runnable onConnect, Consumer<IOException> onConnectFailure) {
         this.decoder = decoder;
         this.onClose = onClose;
+        this.onConnect = onConnect;
+        this.onConnectFailure = onConnectFailure;
     }
 
     @Override
@@ -36,7 +41,17 @@ public class TelnetDecoder implements TelnetSessionListener {
     }
 
     @Override
-    public void connectionClosed() {
+    public void connectionClosed(TelnetSession session) {
         onClose.run();
+    }
+
+    @Override
+    public void connected(TelnetSession session) {
+        onConnect.run();
+    }
+
+    @Override
+    public void connectionFailed(TelnetSession session, IOException e) {
+        onConnectFailure.accept(e);
     }
 }
