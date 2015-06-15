@@ -11,7 +11,6 @@ import net.virtualinfinity.telnet.TelnetSession;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.Color;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -79,7 +78,6 @@ public class Terminal {
         this.frame = new JFrame(DISCONNECTED_TITLE);
         view = new PresentationComponent();
         final StickyBottomScrollPane scrollPane = new StickyBottomScrollPane(view, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        scrollPane.getVerticalScrollBar().setBackground(Color.black);
         frame.add(scrollPane);
         // TODO: Font picker and preferences.
         frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
@@ -336,7 +334,7 @@ public class Terminal {
             try {
                 if (contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
                     DataFlavor.getTextPlainUnicodeFlavor().getReaderForText(contents);
-                    inputDevice.pasted(CharBuffer.wrap((CharSequence)contents.getTransferData(DataFlavor.stringFlavor)));
+                    inputDevice.pasted(CharBuffer.wrap(((String)contents.getTransferData(DataFlavor.stringFlavor)).replace("\n", "\r")));
                 }
             } catch (Exception e1) {
                 e1.printStackTrace();
