@@ -20,7 +20,6 @@ import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -334,7 +333,7 @@ public class Terminal {
             try {
                 if (contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
                     DataFlavor.getTextPlainUnicodeFlavor().getReaderForText(contents);
-                    inputDevice.pasted(CharBuffer.wrap(((String)contents.getTransferData(DataFlavor.stringFlavor)).replace("\n", "\r")));
+                    inputDevice.pasted(((String)contents.getTransferData(DataFlavor.stringFlavor)));
                 }
             } catch (Exception e1) {
                 e1.printStackTrace();

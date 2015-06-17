@@ -125,7 +125,7 @@ public class PresentationComponent extends JComponent implements Scrollable {
     }
 
     private void repaintIn(long milliseconds) {
-        Timer timer = new Timer((int)milliseconds, e -> repaint());
+        final Timer timer = new Timer((int)milliseconds, e -> repaint());
         timer.setRepeats(false);
         timer.start();
     }

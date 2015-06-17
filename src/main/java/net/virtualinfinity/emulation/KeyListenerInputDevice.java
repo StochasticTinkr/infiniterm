@@ -9,13 +9,17 @@ import java.nio.CharBuffer;
  */
 public class KeyListenerInputDevice extends KeyAdapter implements InputDevice {
     private Encoder encoder;
+    private String lineEnding = "\r\n";
 
     @Override
     public void keyTyped(KeyEvent e) {
-        if (e.getKeyChar() == '\n') {
-            typed('\r');
-        } else {
-            typed(e.getKeyChar());
+        switch (e.getExtendedKeyCode()) {
+            case KeyEvent.VK_ENTER:
+                encoder.character(CharBuffer.wrap(lineEnding));
+                encoder.flush(true);
+                break;
+            default:
+                typed(e.getKeyChar());
         }
     }
 
@@ -111,11 +115,12 @@ public class KeyListenerInputDevice extends KeyAdapter implements InputDevice {
     }
 
     @Override
-    public void pasted(CharBuffer charBuffer) {
+    public void pasted(String pasted) {
         if (encoder == null) {
             return;
         }
-        encoder.character(charBuffer);
+
+        encoder.character(CharBuffer.wrap(pasted.replaceAll("\r?\n", lineEnding)));
         encoder.flush(false);
     }
 
@@ -129,5 +134,13 @@ public class KeyListenerInputDevice extends KeyAdapter implements InputDevice {
         return encoder;
     }
 
+    public String lineEnding() {
+        return lineEnding;
+    }
 
+    public KeyListenerInputDevice lineEnding(String lineEnding) {
+        this.lineEnding = lineEnding;
+
+        return this;
+    }
 }
