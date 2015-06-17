@@ -1,7 +1,7 @@
 package net.virtualinfinity.emulation;
 
 import net.virtualinfinity.telnet.Option;
-import net.virtualinfinity.telnet.TelnetSession;
+import net.virtualinfinity.telnet.SubNegotiationOutputChannel;
 import net.virtualinfinity.telnet.option.handlers.OptionReceiver;
 import net.virtualinfinity.telnet.option.handlers.SubNegotiationReceiver;
 
@@ -12,41 +12,47 @@ import java.nio.charset.Charset;
  * @author <a href='mailto:Daniel@coloraura.com'>Daniel Pitts</a>
  */
 public class LocalTerminalTypeHandler implements OptionReceiver<Void>, SubNegotiationReceiver<Void> {
+    private SubNegotiationOutputChannel options;
+
+    public LocalTerminalTypeHandler(SubNegotiationOutputChannel options) {
+        this.options = options;
+    }
+
     @Override
-    public Void enabledRemotely(TelnetSession session, Void handlerData) {
+    public Void enabledRemotely(Void handlerData) {
         return handlerData;
     }
 
     @Override
-    public Void disabledRemotely(TelnetSession session, Void handlerData) {
+    public Void disabledRemotely(Void handlerData) {
         return handlerData;
     }
 
     @Override
-    public Void enabledLocally(TelnetSession session, Void handlerData) {
+    public Void enabledLocally(Void handlerData) {
         return handlerData;
     }
 
     @Override
-    public Void disabledLocally(TelnetSession session, Void handlerData) {
+    public Void disabledLocally(Void handlerData) {
         return handlerData;
     }
 
     @Override
-    public Void startSubNegotiation(TelnetSession session, Void handlerData) {
+    public Void startSubNegotiation(Void handlerData) {
         return null;
     }
 
     @Override
-    public Void subNegotiationData(ByteBuffer data, TelnetSession session, Void handlerData) {
+    public Void subNegotiationData(ByteBuffer data, Void handlerData) {
         if (data.hasRemaining() && data.get() == 1) {
-            session.sendSubNegotiation(optionCode(), ByteBuffer.wrap("\u0000ANSI".getBytes(Charset.forName("US-ASCII"))));
+            options.sendSubNegotiation(optionCode(), ByteBuffer.wrap("\u0000ANSI".getBytes(Charset.forName("US-ASCII"))));
         }
         return null;
     }
 
     @Override
-    public Void endSubNegotiation(TelnetSession session, Void handlerData) {
+    public Void endSubNegotiation(Void handlerData) {
         return null;
     }
 

@@ -6,8 +6,9 @@ import net.virtualinfinity.emulation.ui.OutputDeviceImpl;
 import net.virtualinfinity.emulation.ui.PresentationComponent;
 import net.virtualinfinity.nio.EventLoop;
 import net.virtualinfinity.swing.StickyBottomScrollPane;
-import net.virtualinfinity.telnet.Option;
-import net.virtualinfinity.telnet.TelnetSession;
+import net.virtualinfinity.telnet.*;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.math.NumberUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -17,12 +18,10 @@ import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
+import java.io.Closeable;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
-import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Vector;
@@ -63,8 +62,8 @@ public class Terminal {
     private static int nextId = 0;
     private Decoder decoder;
     private Encoder encoder;
-    private TelnetSession telnetSession;
-    private String connectionAddress;
+    private final ClientStarter clientStarter = new ClientStarter();
+    private Closeable closer;
 
     {
         synchronized (Terminal.class) {
@@ -171,41 +170,53 @@ public class Terminal {
             }
             hostInput.setEnabled(false);
             connectAction.setEnabled(false);
-            onIOThread(() -> {
-                onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + selectedItem.toString() + " (Resolving...)"));
-                final InetSocketAddress address = resolveAddress(selectedItem.toString());
-                connectionAddress = addressName(address);
-                state = State.CONNECTING;
-                onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Connecting...)"));
-                SocketChannel channel = null;
-                try {
-                    channel = SocketChannel.open();
-                    channel.configureBlocking(false);
-                    channel.connect(address);
-                    finishConnect(selectedCharset(), channel);
-                } catch (Exception e) {
+            final Charset charset = selectedCharset();
+            final String hostName = StringUtils.substringBefore(selectedItem.toString(), ":");
+            final int port = NumberUtils.toInt(StringUtils.substringAfter(selectedItem.toString(), ":"), 23);
+            String connectionAddress = port == 23 ? hostName : hostName + ":" + port;
+            final OutputDeviceImpl device = new OutputDeviceImpl(view.getModel());
+            device.inputDevice(inputDevice);
+            decoder = new Decoder(device);
+            onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Resolving...)"));
+            clientStarter.connect(eventLoop, hostName, port, new TelnetDecoder(decoder) {
+                @Override
+                public void connected(Session session) {
+                    onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Connected)"));
+                    connectionSuccessful(session, charset);
+                }
+
+                @Override
+                public void connecting() {
+                    onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Connecting...)"));
+                }
+
+                @Override
+                public void connectionClosed() {
+                    disconnect();
+                }
+
+                @Override
+                public void connectionFailed(IOException e) {
                     disconnectOnError(e);
-                    if (channel != null) {
-                        try {
-                            channel.close();
-                        } catch (IOException ignore) {
-                        }
-                    }
                 }
             });
         });
     }
 
-    private void connectionSuccessful() {
+    private void connectionSuccessful(Session session, Charset charset) {
         state = State.CONNECTED;
-        frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Connected)");
+        closer = session::close;
+        encoder = new Encoder(new TelnetSessionDispatcher(session.outputChannel(), eventLoop));
+        onGuiThread(() -> inputDevice.setEncoder(encoder));
+        setCharSet(charset);
+        negotiateOptions(session.options(), session.subNegotiationOutputChannel());
     }
 
-    private String addressName(InetSocketAddress address) {
-        if (address.getPort() != 23) {
-            return address.getHostString() + ":" + address.getPort();
-        }
-        return address.getHostString();
+    private void negotiateOptions(Options options, SubNegotiationOutputChannel negotiationChannel) {
+        options.option(Option.ECHO).allowRemote();
+        options.option(Option.BINARY_TRANSMISSION).allowRemote().allowLocal();
+        options.option(Option.SUPPRESS_GO_AHEAD).requestRemoteEnable().allowLocal();
+        options.installOptionReceiver(new LocalTerminalTypeHandler(negotiationChannel)).allowLocal();
     }
 
     private Charset selectedCharset() {
@@ -214,16 +225,6 @@ public class Terminal {
 
     private void onIOThread(Runnable action) {
         eventLoop.invokeLater(action);
-    }
-
-    private void finishConnect(Charset charset, SocketChannel channel) throws ClosedChannelException {
-        final OutputDeviceImpl device = new OutputDeviceImpl(view.getModel());
-        device.inputDevice(inputDevice);
-        decoder = new Decoder(device);
-        telnetSession = createTelnetSession(channel, decoder);
-        encoder = new Encoder(new TelnetSessionDispatcher(telnetSession, eventLoop));
-        setCharSet(charset);
-        onGuiThread(() -> inputDevice.setEncoder(encoder));
     }
 
     private void setCharSet(Charset charset) {
@@ -249,25 +250,6 @@ public class Terminal {
                 "Connection error.", JOptionPane.ERROR_MESSAGE));
     }
 
-    private TelnetSession createTelnetSession(SocketChannel channel, Decoder decoder) throws ClosedChannelException {
-        final TelnetSession session = new TelnetSession(channel, new TelnetDecoder(decoder, this::disconnect, this::connectionSuccessful, this::disconnectOnError));
-        eventLoop.registerHandler(channel, session);
-        session.option(Option.ECHO).allowRemote();
-        session.option(Option.BINARY_TRANSMISSION).allowRemote().allowLocal();
-        session.option(Option.SUPPRESS_GO_AHEAD).requestRemoteEnable().allowLocal();
-        session.installOptionReceiver(new LocalTerminalTypeHandler()).allowLocal();
-        return session;
-    }
-
-    private InetSocketAddress resolveAddress(String host) {
-        final int colon = host.indexOf(':');
-        if (colon < 0) {
-            return new InetSocketAddress(host, 23);
-        }
-
-        return new InetSocketAddress(host.substring(0, colon), Integer.parseInt(host.substring(colon + 1)));
-    }
-
     public void disconnect() {
         onGuiThread(() -> {
             disconnectAction.setEnabled(false);
@@ -277,9 +259,14 @@ public class Terminal {
         });
         onIOThread(() -> {
             state = State.DISCONNECTED;
-            if (telnetSession != null) {
-                telnetSession.close();
-                telnetSession = null;
+
+            if (closer != null) {
+                try {
+                    closer.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                closer = null;
                 decoder = null;
                 encoder = null;
 
@@ -295,10 +282,10 @@ public class Terminal {
     }
 
     private static class TelnetSessionDispatcher implements Consumer<ByteBuffer> {
-        private final TelnetSession telnetSession;
+        private final OutputChannel telnetSession;
         private final EventLoop eventLoop;
 
-        public TelnetSessionDispatcher(TelnetSession telnetSession, EventLoop eventLoop) {
+        public TelnetSessionDispatcher(OutputChannel telnetSession, EventLoop eventLoop) {
             this.telnetSession = telnetSession;
             this.eventLoop = eventLoop;
         }
@@ -309,7 +296,7 @@ public class Terminal {
             copy.put(buffer);
             copy.flip();
             eventLoop.invokeLater(() -> {
-                telnetSession.writeData(copy);
+                telnetSession.write(copy);
             });
         }
     }
