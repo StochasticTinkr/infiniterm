@@ -6,7 +6,7 @@
 
     <groupId>net.virtualinfinity</groupId>
     <artifactId>net.virtualinfinity.infiniterm</artifactId>
-    <version>dev-new-io</version>
+    <version>dev</version>
 
     <packaging>jar</packaging>
 
@@ -29,7 +29,7 @@
         <dependency>
             <groupId>net.virtualinfinity</groupId>
             <artifactId>net.virtualinfinity.telnet</artifactId>
-            <version>dev-new-io</version>
+            <version>2.0.0</version>
         </dependency>
         <dependency>
         	<groupId>log4j</groupId>
