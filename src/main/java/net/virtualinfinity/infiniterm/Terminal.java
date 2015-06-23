@@ -7,6 +7,9 @@ import net.virtualinfinity.emulation.ui.PresentationComponent;
 import net.virtualinfinity.nio.EventLoop;
 import net.virtualinfinity.swing.StickyBottomScrollPane;
 import net.virtualinfinity.telnet.*;
+import net.virtualinfinity.telnet.option.BinaryTransmission;
+import net.virtualinfinity.telnet.option.NegotiateAboutWindowSize;
+import net.virtualinfinity.telnet.option.TerminalType;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
 
@@ -24,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Vector;
 import java.util.function.Consumer;
 
@@ -209,14 +213,17 @@ public class Terminal {
         encoder = new Encoder(new TelnetSessionDispatcher(session.outputChannel(), eventLoop));
         onGuiThread(() -> inputDevice.setEncoder(encoder));
         setCharSet(charset);
-        negotiateOptions(session.options(), session.subNegotiationOutputChannel());
+        negotiateOptions(session);
     }
 
-    private void negotiateOptions(Options options, SubNegotiationOutputChannel negotiationChannel) {
-        options.option(Option.ECHO).allowRemote();
-        options.option(Option.BINARY_TRANSMISSION).allowRemote().allowLocal();
-        options.option(Option.SUPPRESS_GO_AHEAD).requestRemoteEnable().allowLocal();
-        options.installOptionReceiver(new LocalTerminalTypeHandler(negotiationChannel)).allowLocal();
+    private void negotiateOptions(Session session) {
+        session.options().option(Option.ECHO).allowRemote();
+        BinaryTransmission.on(session, null).allowLocal().allowRemote();
+        session.options().option(Option.SUPPRESS_GO_AHEAD).requestRemoteEnable().allowLocal();
+        TerminalType.of(session).allowLocal(Collections.singleton("ANSI")::iterator);
+        NegotiateAboutWindowSize.on(session).startOffering(view.getModel().numColumns(), view.getModel().numLines());
+
+//        options.installOptionReceiver(new LocalTerminalTypeHandler(negotiationChannel)).allowLocal();
     }
 
     private Charset selectedCharset() {
