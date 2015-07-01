@@ -1,6 +1,9 @@
 package net.virtualinfinity.infiniterm;
 
+import net.virtualinfinity.nio.SocketSelectionActions;
 import net.virtualinfinity.swing.StickyBottomScrollPane;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.log4j.*;
 import org.apache.log4j.spi.LoggingEvent;
 
@@ -18,6 +21,7 @@ import java.io.IOException;
 public class Main {
     public static void main(String[] args) throws IOException {
         LogManager.getLoggerRepository().setThreshold(Level.DEBUG);
+        LogManager.getLogger(SocketSelectionActions.class).setLevel(Level.WARN);
         final SwingDocumentAppender swingAppender = new SwingDocumentAppender();
         LogManager.getLoggerRepository().getRootLogger().addAppender(swingAppender);
 

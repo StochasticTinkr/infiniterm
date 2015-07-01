@@ -1,10 +1,13 @@
 package net.virtualinfinity.infiniterm;
 
-import net.virtualinfinity.emulation.*;
+import net.virtualinfinity.emulation.Decoder;
+import net.virtualinfinity.emulation.Encoder;
+import net.virtualinfinity.emulation.InputDevice;
+import net.virtualinfinity.emulation.KeyListenerInputDevice;
 import net.virtualinfinity.emulation.telnet.TelnetDecoder;
 import net.virtualinfinity.emulation.ui.OutputDeviceImpl;
 import net.virtualinfinity.emulation.ui.PresentationComponent;
-import net.virtualinfinity.nio.EventLoop;
+import net.virtualinfinity.nio.*;
 import net.virtualinfinity.swing.StickyBottomScrollPane;
 import net.virtualinfinity.telnet.*;
 import net.virtualinfinity.telnet.option.BinaryTransmission;
@@ -23,8 +26,10 @@ import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
+import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
@@ -66,7 +71,16 @@ public class Terminal {
     private static int nextId = 0;
     private Decoder decoder;
     private Encoder encoder;
-    private final ClientStarter clientStarter = new ClientStarter();
+    private final ClientStarter clientStarter = new ClientStarter(new ConnectionInitiator(new AsynchronousAddressResolver(),
+        () -> {
+            final SocketChannel channel = SocketChannel.open();
+            channel.setOption(StandardSocketOptions.SO_RCVBUF, 65536);
+            channel.setOption(StandardSocketOptions.SO_SNDBUF, 65536);
+            channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
+            channel.setOption(StandardSocketOptions.IP_TOS, 8);
+            channel.setOption(StandardSocketOptions.IP_TOS, 8);
+            return new SocketChannelWrapper(channel);
+        }, ServerSocketChannelWrapper.PROVIDER), SessionStarters.client(65536, 65536) );
     private Closeable closer;
 
     {

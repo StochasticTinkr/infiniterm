@@ -15,7 +15,7 @@ public class Encoder {
     public static final Charset US_ASCII = Charset.forName("US-ASCII");
     private final Consumer<ByteBuffer> consumer;
     private CharsetEncoder characterEncoder = Charset.defaultCharset().newEncoder();
-    private final ByteBuffer buffer = ByteBuffer.allocate(1024);
+    private final ByteBuffer buffer = ByteBuffer.allocate(65536);
 
     public Encoder(Consumer<ByteBuffer> consumer) {
         this.consumer = consumer;
@@ -105,10 +105,8 @@ public class Encoder {
     }
 
     private void doEncodeOperation(BiFunction<CharsetEncoder, ByteBuffer, CoderResult> encodeOperation) {
-        final CoderResult result = encodeOperation.apply(characterEncoder, buffer);
-        if (result.isOverflow()) {
+        while (encodeOperation.apply(characterEncoder, buffer).isOverflow()) {
             flush(false);
-            encodeOperation.apply(characterEncoder, buffer);
         }
     }
 

@@ -9,7 +9,7 @@ import java.nio.CharBuffer;
  */
 public class KeyListenerInputDevice extends KeyAdapter implements InputDevice {
     private Encoder encoder;
-    private String lineEnding = "\r\n";
+    private String lineEnding = "\r";
 
     @Override
     public void keyTyped(KeyEvent e) {
