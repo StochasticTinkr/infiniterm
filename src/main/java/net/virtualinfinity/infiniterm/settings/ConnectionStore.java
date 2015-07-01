@@ -17,6 +17,7 @@ public class ConnectionStore {
     private static final String PORT = "port";
     private static final String FONT = "font";
     private static final String NAME = "name";
+    private static final String FONT_SIZE = "fontSize";
     final Preferences preferences = Preferences.userRoot().node("net/virtualinfinity/infiniterm");
 
     public List<Connection> getConnections() throws BackingStoreException {
@@ -31,6 +32,7 @@ public class ConnectionStore {
                     .port(connectionPref.getInt(PORT, 23))
                     .font(connectionPref.get(FONT, Font.MONOSPACED))
                     .name(connectionPref.get(NAME, null))
+                    .fontSize(connectionPref.getInt(FONT_SIZE, 16))
                     .id(id);
 
 
@@ -52,6 +54,10 @@ public class ConnectionStore {
         connectionPref.put(FONT, connection.font());
         connectionPref.put(NAME, connection.name());
 
+    }
+
+    public void deleteConnection(Connection connection) throws BackingStoreException {
+        connectionPreference(connection.id()).removeNode();
     }
 
     private Preferences connectionPreference(String name) {

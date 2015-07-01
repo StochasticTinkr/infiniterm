@@ -10,6 +10,7 @@ public class Connection {
     private int port = 23;
     private String charset;
     private String font;
+    private int fontSize;
 
 
     public String hostName() {
@@ -68,6 +69,16 @@ public class Connection {
 
     public Connection id(String id) {
         this.id = id;
+
+        return this;
+    }
+
+    public int fontSize() {
+        return fontSize;
+    }
+
+    public Connection fontSize(int fontSize) {
+        this.fontSize = fontSize;
 
         return this;
     }

@@ -7,6 +7,7 @@ import net.virtualinfinity.emulation.KeyListenerInputDevice;
 import net.virtualinfinity.emulation.telnet.TelnetDecoder;
 import net.virtualinfinity.emulation.ui.OutputDeviceImpl;
 import net.virtualinfinity.emulation.ui.PresentationComponent;
+import net.virtualinfinity.infiniterm.settings.Connection;
 import net.virtualinfinity.nio.*;
 import net.virtualinfinity.swing.StickyBottomScrollPane;
 import net.virtualinfinity.telnet.*;
@@ -44,16 +45,18 @@ public class Terminal {
     public static final String TITLE_PREFIX = "VirtualInfiniterm";
     public static final String DISCONNECTED_TITLE = TITLE_PREFIX + " - (Disconnected)";
     private final PresentationComponent view;
+    private final JSpinner fontSizes = new JSpinner(new SpinnerNumberModel(16, 6, 96, 1));
     private final JFrame frame;
     private final JComboBox<String> hostInput;
-    private JComboBox<Charset> encodingInput;
+    private final DefaultComboBoxModel<Charset> charsetsModel = new DefaultComboBoxModel<>();
+    private final JComboBox<Charset> encodingInput = new JComboBox<>(charsetsModel);
+    private final JComboBox<String> fonts;
     private final EventLoop eventLoop;
     private final KeyListenerInputDevice inputDevice = new KeyListenerInputDevice();
     private final Action connectAction = new AbstractAction("Connect") {
         @Override
         public void actionPerformed(ActionEvent e) {
             connect();
-            view.requestFocusInWindow();
         }
     };
     private final Action disconnectAction = new AbstractAction("Disconnect") {
@@ -112,11 +115,10 @@ public class Terminal {
         toolBar.addSeparator();
         toolBar.add(new JLabel("Font:"));
         final GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        final JComboBox<String> fonts = new JComboBox<>(ge.getAvailableFontFamilyNames());
+        fonts = new JComboBox<>(ge.getAvailableFontFamilyNames());
         Arrays.asList(Font.MONOSPACED, "Monoco", "PT Mono").forEach(fonts::setSelectedItem);
         fonts.setEditable(false);
         toolBar.add(fonts);
-        final JSpinner fontSizes = new JSpinner(new SpinnerNumberModel(16, 6, 60, 1));
         toolBar.add(fontSizes);
         final Runnable updateFont = () -> {
             view.setFont(new Font(fonts.getItemAt(fonts.getSelectedIndex()), Font.PLAIN, (Integer) fontSizes.getValue()));
@@ -134,13 +136,11 @@ public class Terminal {
     private void addEncodingWidgets(JToolBar toolBar) {
         toolBar.add(new JLabel("Encoding:"));
         //noinspection UseOfObsoleteCollectionType
-        final Vector<Charset> charsets = new Vector<>();
-        charsets.add(Charset.defaultCharset());
+        charsetsModel.addElement(Charset.defaultCharset());
         if (Charset.isSupported(IBM_437)) {
-            charsets.add(Charset.forName(IBM_437));
+            charsetsModel.addElement(Charset.forName(IBM_437));
         }
-        charsets.addAll(Charset.availableCharsets().values());
-        encodingInput = new JComboBox<>(charsets);
+        Charset.availableCharsets().values().forEach(charsetsModel::addElement);
         encodingInput.setEditable(false);
         encodingInput.setSelectedItem(Charset.forName(IBM_437));
         encodingInput.setAction(new AbstractAction() {
@@ -188,36 +188,43 @@ public class Terminal {
             }
             hostInput.setEnabled(false);
             connectAction.setEnabled(false);
-            final Charset charset = selectedCharset();
             final String hostName = StringUtils.substringBefore(selectedItem.toString(), ":");
             final int port = NumberUtils.toInt(StringUtils.substringAfter(selectedItem.toString(), ":"), 23);
-            String connectionAddress = port == 23 ? hostName : hostName + ":" + port;
-            final OutputDeviceImpl device = new OutputDeviceImpl(view.getModel());
-            device.inputDevice(inputDevice);
-            decoder = new Decoder(device);
-            onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Resolving...)"));
-            clientStarter.connect(eventLoop, hostName, port, new TelnetDecoder(decoder) {
-                @Override
-                public void connected(Session session) {
-                    onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Connected)"));
-                    connectionSuccessful(session, charset);
-                }
 
-                @Override
-                public void connecting() {
-                    onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connectionAddress + " (Connecting...)"));
-                }
+            initiateConnection(new Connection().name(port == 23 ? hostName : hostName + ":" + port).hostName(hostName).port(port));
+        });
+    }
 
-                @Override
-                public void connectionClosed() {
-                    disconnect();
-                }
+    private void initiateConnection(final Connection connection) {
+        final Charset charset = selectedCharset();
+        final OutputDeviceImpl device = new OutputDeviceImpl(view.getModel());
+        device.inputDevice(inputDevice);
+        decoder = new Decoder(device);
+        onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connection.name() + " (Resolving...)"));
+        clientStarter.connect(eventLoop, connection.hostName(), connection.port(), new TelnetDecoder(decoder) {
+            @Override
+            public void connected(Session session) {
+                onGuiThread(() -> {
+                    frame.setTitle(TITLE_PREFIX + " - " + connection.name() + " (Connected)");
+                    view.requestFocusInWindow();
+                });
+                connectionSuccessful(session, charset);
+            }
 
-                @Override
-                public void connectionFailed(IOException e) {
-                    disconnectOnError(e);
-                }
-            });
+            @Override
+            public void connecting() {
+                onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connection.name() + " (Connecting...)"));
+            }
+
+            @Override
+            public void connectionClosed() {
+                disconnect();
+            }
+
+            @Override
+            public void connectionFailed(IOException e) {
+                disconnectOnError(e);
+            }
         });
     }
 
@@ -293,6 +300,15 @@ public class Terminal {
 
             }
         });
+    }
+
+    public void showAndConnect(Connection connection) {
+        show();
+        encodingInput.setSelectedItem(Charset.forName(connection.charset()));
+        fonts.setSelectedItem(connection.font());
+        fontSizes.setValue(connection.fontSize());
+        initiateConnection(connection);
+
     }
 
 

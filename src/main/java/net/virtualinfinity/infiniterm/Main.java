@@ -1,5 +1,7 @@
 package net.virtualinfinity.infiniterm;
 
+import net.virtualinfinity.infiniterm.settings.ConnectionStore;
+import net.virtualinfinity.infiniterm.settings.ui.ConnectionSettings;
 import net.virtualinfinity.nio.SocketSelectionActions;
 import net.virtualinfinity.swing.StickyBottomScrollPane;
 import org.apache.commons.logging.Log;
@@ -40,9 +42,11 @@ public class Main {
                 logFrame.add(new StickyBottomScrollPane(view));
                 logFrame.pack();
                 logFrame.setVisible(true);
-                final Terminal terminalFrame = new Terminal();
-                terminalFrame.show();
-            } catch (IOException e) {
+//                final Terminal terminalFrame = new Terminal();
+//                terminalFrame.show();
+                final ConnectionSettings connectionSettings = new ConnectionSettings(new ConnectionStore());
+                connectionSettings.show();
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         });
