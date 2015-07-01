@@ -16,6 +16,7 @@ import net.virtualinfinity.telnet.option.NegotiateAboutWindowSize;
 import net.virtualinfinity.telnet.option.TerminalType;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
+import org.apache.log4j.Logger;
 
 import javax.swing.*;
 import java.awt.*;
@@ -34,7 +35,6 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Vector;
 import java.util.function.Consumer;
 
 /**
@@ -44,6 +44,7 @@ public class Terminal {
     public static final String IBM_437 = "IBM437";
     public static final String TITLE_PREFIX = "VirtualInfiniterm";
     public static final String DISCONNECTED_TITLE = TITLE_PREFIX + " - (Disconnected)";
+    private static int nextId;
     private final PresentationComponent view;
     private final JSpinner fontSizes = new JSpinner(new SpinnerNumberModel(16, 6, 96, 1));
     private final JFrame frame;
@@ -53,27 +54,7 @@ public class Terminal {
     private final JComboBox<String> fonts;
     private final EventLoop eventLoop;
     private final KeyListenerInputDevice inputDevice = new KeyListenerInputDevice();
-    private final Action connectAction = new AbstractAction("Connect") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            connect();
-        }
-    };
-    private final Action disconnectAction = new AbstractAction("Disconnect") {
-        {
-            setEnabled(false);
-        }
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            disconnect();
-            hostInput.requestFocusInWindow();
-        }
-    };
-    private State state = State.DISCONNECTED;
     private final int id;
-    private static int nextId = 0;
-    private Decoder decoder;
-    private Encoder encoder;
     private final ClientStarter clientStarter = new ClientStarter(new ConnectionInitiator(new AsynchronousAddressResolver(),
         () -> {
             final SocketChannel channel = SocketChannel.open();
@@ -83,8 +64,28 @@ public class Terminal {
             channel.setOption(StandardSocketOptions.IP_TOS, 8);
             channel.setOption(StandardSocketOptions.IP_TOS, 8);
             return new SocketChannelWrapper(channel);
-        }, ServerSocketChannelWrapper.PROVIDER), SessionStarters.client(65536, 65536) );
+        }, ServerSocketChannelWrapper.PROVIDER), SessionStarters.client(65536, 65536));
+    private State state = State.DISCONNECTED;
+    private Decoder decoder;
+    private Encoder encoder;
     private Closeable closer;
+    private final Action disconnectAction = new AbstractAction("Disconnect") {
+        {
+            setEnabled(false);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            disconnect();
+            hostInput.requestFocusInWindow();
+        }
+    };
+    private final Action connectAction = new AbstractAction("Connect") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            connect();
+        }
+    };
 
     {
         synchronized (Terminal.class) {
@@ -178,7 +179,6 @@ public class Terminal {
 
     private void connect() {
         onGuiThread(() -> {
-            disconnectAction.setEnabled(true);
             final Object selectedItem = hostInput.getModel().getSelectedItem();
             if (selectedItem == null) {
                 JOptionPane.showMessageDialog(frame,
@@ -186,8 +186,6 @@ public class Terminal {
                     "No host selected", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            hostInput.setEnabled(false);
-            connectAction.setEnabled(false);
             final String hostName = StringUtils.substringBefore(selectedItem.toString(), ":");
             final int port = NumberUtils.toInt(StringUtils.substringAfter(selectedItem.toString(), ":"), 23);
 
@@ -200,7 +198,12 @@ public class Terminal {
         final OutputDeviceImpl device = new OutputDeviceImpl(view.getModel());
         device.inputDevice(inputDevice);
         decoder = new Decoder(device);
-        onGuiThread(() -> frame.setTitle(TITLE_PREFIX + " - " + connection.name() + " (Resolving...)"));
+        onGuiThread(() -> {
+            disconnectAction.setEnabled(true);
+            hostInput.setEnabled(false);
+            connectAction.setEnabled(false);
+            frame.setTitle(TITLE_PREFIX + " - " + connection.name() + " (Resolving...)");
+        });
         clientStarter.connect(eventLoop, connection.hostName(), connection.port(), new TelnetDecoder(decoder) {
             @Override
             public void connected(Session session) {
@@ -359,8 +362,8 @@ public class Terminal {
                     DataFlavor.getTextPlainUnicodeFlavor().getReaderForText(contents);
                     inputDevice.pasted(((String)contents.getTransferData(DataFlavor.stringFlavor)));
                 }
-            } catch (Exception e1) {
-                e1.printStackTrace();
+            } catch (final Exception e1) {
+                Logger.getLogger(Terminal.class).error("Unable to paste", e1);
             }
         }
     }

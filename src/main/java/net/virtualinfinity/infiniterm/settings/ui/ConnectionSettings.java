@@ -7,6 +7,8 @@ import net.virtualinfinity.infiniterm.settings.ConnectionStore;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -93,28 +95,52 @@ public class ConnectionSettings {
                 try {
                     connectionStore.saveConnection(connection);
                 } catch (BackingStoreException e1) {
-                    final StringWriter out = new StringWriter();
-                    out.write("<html><p>I encountered an unexpected error while trying to save your connection information. </p><pre>");
-                    final PrintWriter writer = new PrintWriter(out);
-                    e1.printStackTrace(writer);
-                    writer.flush();
-                    out.write("</pre></html>");
-                    out.flush();
-                    JOptionPane.showMessageDialog(frame, out.toString(), "Unable to save connection.", JOptionPane.ERROR_MESSAGE);
+                    displayError(e1, "save your connection information");
                 }
             }
         }));
         buttonPane.add(new JButton(new AbstractAction("Connect") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                try {
-                    final Terminal terminal = new Terminal();
-                    terminal.showAndConnect(connectionList.getSelectedValue());
-                } catch (IOException e1) {
-                }
+                connectToSelected();
             }
         }));
         frame.add(BorderLayout.SOUTH, buttonPane);
+
+        connectionList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    connectToSelected();
+                }
+            }
+        });
+
+        if (connectionListModel.isEmpty()) {
+            addNewConnection();
+        }
+        connectionList.setSelectedIndex(0);
+
+    }
+
+    private void displayError(Exception exception, String action) {
+        final StringWriter out = new StringWriter();
+        out.write("<html><p>I encountered an unexpected error while trying to " + action + ". </p><pre>");
+        final PrintWriter writer = new PrintWriter(out);
+        exception.printStackTrace(writer);
+        writer.flush();
+        out.write("</pre></html>");
+        out.flush();
+        JOptionPane.showMessageDialog(frame, out.toString(), "Unable to save connection.", JOptionPane.ERROR_MESSAGE);
+    }
+
+    private void connectToSelected() {
+        try {
+            final Terminal terminal = new Terminal();
+            terminal.showAndConnect(connectionList.getSelectedValue());
+        } catch (IOException e) {
+            displayError(e, "open the terminal");
+        }
     }
 
     private void createCopy(Connection selectedValue) {
